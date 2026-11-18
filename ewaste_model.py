@@ -45,11 +45,21 @@ def busy_power_w(tdp, fp):
 # ----------------------------------------------------------------------
 def breakeven(old, new, cemb=CEMB["central"], ci=CI["central"], pue=PUE["central"],
               duty=DUTY["central"], rho=1.0, fp=FP["central"]):
-    """Years until replacing `old` by `new` for a fixed workload pays back in carbon."""
+    """Years to replacement carbon payback, INCLUDING modeled idle electricity.
+
+    Full-size old device versus fraction r of an equivalent new-device fleet.
+    The model uses matched duty cycles and a fixed workload; the comparison
+    uses the idle-power assumption already used in E2 and E3.
+    """
     s = GPU[new]["peak"] / GPU[old]["peak"]
     r = 1.0 / (1.0 + rho * (s - 1.0))            # fraction of a new GPU per old GPU
-    e_old = busy_power_w(GPU[old]["tdp"], fp) * duty * 8760 * pue / 1000.0
-    e_new = r * busy_power_w(GPU[new]["tdp"], fp) * duty * 8760 * pue / 1000.0
+    # Account for idle electricity in the SAME manner as E2/E3.
+    # Each device draws full busy power during duty fraction and
+    # P_IDLE_FRAC of busy power during the remaining hours.
+    # The replacement fleet has r times as many equivalent device slots.
+    annual_load_factor = duty + (1.0 - duty) * P_IDLE_FRAC
+    e_old = busy_power_w(GPU[old]["tdp"], fp) * annual_load_factor * 8760 * pue / 1000.0
+    e_new = r * busy_power_w(GPU[new]["tdp"], fp) * annual_load_factor * 8760 * pue / 1000.0
     save_kwh = e_old - e_new
     c_new = r * cemb
     if save_kwh <= 0:
